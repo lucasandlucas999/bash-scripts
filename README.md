@@ -1,5 +1,10 @@
 
-### Script para configurar reserve ssh >>> SCRIPT EN PROCESO
+### Codigos bash -- Automatización de Procesos
+ 
+## Proyectos actuales: 
+
+# ----------------------------------------------------------- 
+## 1. Script para configurar reserve ssh >>> SCRIPT EN PROCESO
 
 ## ¡ MODIFICACIONES PENDIENTES !
 # 1. Pedir ip de servidor
@@ -17,3 +22,4 @@
 # El puerto remoto debe colocarse el puerto con el que el se hará el reverse ssh en el servidor, ejemplo: En el servidor principal se ejecuta  ssh -p 2201 root@172.16.0.114
 # siendo 2201 el puerto colocado
 
+# ----------------------------------------------------------- 
