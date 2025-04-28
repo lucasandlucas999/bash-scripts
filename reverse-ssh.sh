@@ -8,7 +8,7 @@
 # 2. Pedir puerto de servidor
 # 3. Pedir puerto de cliente
 # 4. Colocar por ssh key
-# 5. Hacer que funcione como servicio
+# 5. Hacer que funcione como servicio AAAAAAAA
 
 
 # INSTRUCCIONES: 
