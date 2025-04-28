@@ -1,48 +1,65 @@
 #!/bin/bash
 
 # Lucas Acuña
-# Ult. Modificación: 26/04/2025 13:42 hs
+# Última Modificación: 28/04/2025 10:14 hs
 
-# ¡ MODIFICACIONES PENDIENTES !
-# 1. Pedir ip de servidor
-# 2. Pedir puerto de servidor
-# 3. Pedir puerto de cliente
-# 4. Colocar por ssh key
-# 5. Hacer que funcione como servicio AAAAAAAA
+# INSTRUCCIONES:
+# El script tiene que ejecutarse como servidor, preferiblemente colocar en la carpeta root y darle permisos de ejecución con chmod +x {nombre_del_archivo}.sh
+# El nombre del cliente es un identificador nada más <---- ACTUALIZAR Y HACER FUNCIONAL
+# El puerto remoto debe colocarse el puerto con el que se hará el reverse ssh en el servidor, ejemplo: En el servidor principal se ejecuta ssh -p 2201 root@172.16.0.114
 
-
-# INSTRUCCIONES: 
-# El script tiene que ejecutarse como servidor, preferiblemente colocar en la carpeta root y darle permisos de ejecucion con chmod +x {nombre_del_archivo}.sh
-
-# El nombre del cliente es un identificador nada mas <---- ACTUALIZAR Y HACER FUNCIONAL
-
-# El puerto remoto debe colocarse el puerto con el que el se hará el reverse ssh en el servidor, ejemplo: En el servidor principal se ejecuta  ssh -p 2201 root@172.16.0.114
-# siendo 2201 el puerto colocado
-
-SERVER_IP="172.16.0.114"   # IP de tu servidor con AWX 
+export LANG=es_ES.cp850
+if ! command -v dialog &> /dev/null; then
+    echo "El programa 'dialog' no está instalado. Instalando..."
+    sudo dnf update
+    sudo dnf install -y dialog
+fi
+SERVER_IP="172.16.0.114"   # IP del servidor con AWX 
 SERVER_SSH_PORT="22"       # Puerto del servidor 
 
-# Pedir información al usuario
-echo "=== Configuración del Túnel Reverse SSH ==="
-read -p "Nombre identificador del cliente: " CLIENT_NAME
-read -p "Puerto remoto en el servidor para este cliente (ej: 2201): " REMOTE_PORT
-read -p "Usuario en el servidor AWX (ej: infosv): " SSH_USER
-read -s -p "Contraseña del usuario: " SSH_PASSWORD
-echo ""
+CLIENT_NAME=$(dialog --inputbox "Nombre identificador del cliente:" 8 40 3>&1 1>&2 2>&3)
+REMOTE_PORT=$(dialog --inputbox "Puerto remoto en el servidor para este cliente (ej: 2201):" 8 40 3>&1 1>&2 2>&3)
+SSH_USER=$(dialog --inputbox "Usuario en el servidor AWX (ej: infosv):" 8 40 3>&1 1>&2 2>&3)
+SSH_PASSWORD=$(dialog --passwordbox "Contraseña del usuario:" 8 40 3>&1 1>&2 2>&3)
 
-# Para abrir el túnel
-COMMAND="ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -N -R ${REMOTE_PORT}:localhost:22 ${SSH_USER}@${SERVER_IP} -p ${SERVER_SSH_PORT}"
-echo ""
-echo "======================================="
-echo "Se va a crear un túnel:"
-echo "Cliente: localhost:22 -> Servidor: ${SERVER_IP}:${REMOTE_PORT}"
-echo "======================================="
-
-# ssh para tunel
-if ! command -v sshpass &> /dev/null; then
-    echo "Instalando sshpass..."
-    sudo apt update
-    sudo apt install -y sshpass
+# verificar si los campos estan vacios o el usuario cancelo
+if [[ -z "$CLIENT_NAME" || -z "$REMOTE_PORT" || -z "$SSH_USER" || -z "$SSH_PASSWORD" ]]; then
+    dialog --msgbox "Información incompleta. El script se cerrará." 6 40
+    exit 1
 fi
 
-sshpass -p "${SSH_PASSWORD}" ${COMMAND}
+COMMAND="ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -N -R ${REMOTE_PORT}:localhost:22 ${SSH_USER}@${SERVER_IP} -p ${SERVER_SSH_PORT}"
+dialog --msgbox "Se va a crear un túnel SSH con los siguientes detalles:\n\nCliente: localhost:22 -> Servidor: ${SERVER_IP}:${REMOTE_PORT}\n\nPresiona OK para continuar." 10 50
+
+if ! command -v sshpass &> /dev/null; then
+    dialog --msgbox "Instalando sshpass..." 6 30
+    sudo dnf update
+    sudo dnf install -y sshpass
+fi
+
+# generar el servicio 
+SERVICE_FILE="/etc/systemd/system/reverse-ssh-${CLIENT_NAME}.service"
+
+cat <<EOF | sudo tee $SERVICE_FILE > /dev/null
+[Unit]
+Description=Tunel para ${CLIENT_NAME}
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/sshpass -p "${SSH_PASSWORD}" ${COMMAND}
+Restart=always
+User=root
+WorkingDirectory=/root
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=reverse-ssh-${CLIENT_NAME}
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable reverse-ssh-${CLIENT_NAME}.service
+sudo systemctl start reverse-ssh-${CLIENT_NAME}.service
+dialog --msgbox "El túnel SSH se ha establecido como servicio.\n\nPara detenerlo, usa: sudo systemctl stop reverse-ssh-${CLIENT_NAME}.service" 6 50
+clear
